@@ -169,6 +169,7 @@
 <div id="map"></div>
 
 <div class="toolbar">
+    <button class="tool-btn" id="btn-satellite" title="Vue satellite"><i class="fas fa-satellite"></i></button>
     <button class="tool-btn" id="btn-gps" title="Ma position GPS"><i class="fas fa-location-crosshairs"></i></button>
     <button class="tool-btn" id="btn-zoom-in" title="Zoom +"><i class="fas fa-plus"></i></button>
     <button class="tool-btn" id="btn-zoom-out" title="Zoom -"><i class="fas fa-minus"></i></button>
@@ -201,14 +202,23 @@
     let allPostes = [];
     let editMode = null; // 'add' | 'move'
     let movingPosteId = null;
+    let osmLayer, satelliteLayer;
+    let currentBase = 'osm';
 
     function init() {
         map = L.map('map', { zoomControl: false }).setView([4.58, 13.68], 9);
 
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap',
             maxZoom: 19
-        }).addTo(map);
+        });
+
+        satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: '&copy; Google',
+            maxZoom: 22
+        });
+
+        osmLayer.addTo(map);
 
         map.createPane('arrondPane');
         map.getPane('arrondPane').style.zIndex = 400;
@@ -537,8 +547,25 @@
         setTimeout(() => el.remove(), 3500);
     }
 
+    // --- Satellite toggle ---
+    function toggleSatellite() {
+        const btn = document.getElementById('btn-satellite');
+        if (currentBase === 'osm') {
+            map.removeLayer(osmLayer);
+            map.addLayer(satelliteLayer);
+            currentBase = 'satellite';
+            btn.classList.add('active');
+        } else {
+            map.removeLayer(satelliteLayer);
+            map.addLayer(osmLayer);
+            currentBase = 'osm';
+            btn.classList.remove('active');
+        }
+    }
+
     // --- Events ---
     function setupEvents() {
+        document.getElementById('btn-satellite').addEventListener('click', toggleSatellite);
         document.getElementById('btn-gps').addEventListener('click', locateUser);
         document.getElementById('btn-zoom-in').addEventListener('click', () => map.zoomIn());
         document.getElementById('btn-zoom-out').addEventListener('click', () => map.zoomOut());
