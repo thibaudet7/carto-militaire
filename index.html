@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carto Militaire - Postes Militaires du Cameroun</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #map { width: 100vw; height: 100vh; }
+
+        #header {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 1000;
+            background: linear-gradient(135deg, #1a3a2a 0%, #2d5a3d 100%);
+            color: white; padding: 10px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #header h1 { font-size: 18px; font-weight: 600; }
+        #header .subtitle { font-size: 11px; opacity: 0.7; }
+
+        .toolbar {
+            position: absolute; top: 70px; right: 10px; z-index: 1000;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .tool-btn {
+            width: 40px; height: 40px; border: none; border-radius: 8px;
+            background: white; color: #333; font-size: 16px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            transition: all 0.15s;
+        }
+        .tool-btn:hover { background: #f0f0f0; transform: scale(1.05); }
+        .tool-btn.active { background: #2d5a3d; color: white; }
+
+        .admin-toolbar {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; display: flex; gap: 8px;
+        }
+        .admin-btn {
+            padding: 10px 18px; border: none; border-radius: 10px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+            transition: all 0.15s;
+        }
+        .admin-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .btn-add { background: #2d5a3d; color: white; }
+        .btn-edit { background: #1565C0; color: white; }
+        .btn-move { background: #E65100; color: white; }
+        .btn-delete { background: #c62828; color: white; }
+
+        #edit-mode-bar {
+            display: none;
+            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+            z-index: 1001; background: rgba(0,0,0,0.85); color: white;
+            padding: 10px 24px; border-radius: 10px;
+            font-size: 13px; text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        #edit-mode-bar .cancel-btn {
+            background: #c62828; color: white; border: none; border-radius: 6px;
+            padding: 4px 14px; margin-left: 12px; cursor: pointer; font-size: 12px;
+        }
+
+        .legend {
+            position: absolute; bottom: 80px; right: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.92); backdrop-filter: blur(4px);
+            border-radius: 10px; padding: 12px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 12px;
+        }
+        .legend h4 { margin-bottom: 8px; font-size: 13px; color: #333; }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .legend-circle {
+            width: 14px; height: 14px; border-radius: 50%;
+            border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal {
+            background: white; border-radius: 14px; padding: 24px;
+            width: 400px; max-width: 92vw; max-height: 85vh; overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal h3 { margin-bottom: 16px; color: #1a3a2a; font-size: 17px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 600; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 10px 12px; border: 1.5px solid #ddd;
+            border-radius: 8px; font-size: 14px; transition: border 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus { border-color: #2d5a3d; outline: none; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+        .modal-actions button {
+            flex: 1; padding: 10px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+        }
+        .modal-actions .btn-save { background: #2d5a3d; color: white; }
+        .modal-actions .btn-cancel { background: #eee; color: #333; }
+        .modal-actions button:hover { opacity: 0.85; }
+
+        .leaflet-popup-content { min-width: 200px; }
+        .popup-title { font-weight: 700; font-size: 14px; color: #1a3a2a; margin-bottom: 6px; }
+        .popup-row { font-size: 12px; color: #444; margin-bottom: 3px; }
+        .popup-row b { color: #222; }
+        .popup-actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+        .popup-actions button {
+            padding: 5px 10px; border: none; border-radius: 6px;
+            font-size: 11px; font-weight: 600; cursor: pointer; color: white;
+        }
+        .popup-btn-edit { background: #1565C0; }
+        .popup-btn-move { background: #E65100; }
+        .popup-btn-delete { background: #c62828; }
+
+        #loading {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.9); z-index: 3000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #ddd;
+            border-top-color: #2d5a3d; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading p { margin-top: 12px; color: #555; font-size: 14px; }
+
+        .notification {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 3000; padding: 12px 24px; border-radius: 10px;
+            color: white; font-size: 13px; font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s ease;
+        }
+        .notification.success { background: #2d5a3d; }
+        .notification.error { background: #c62828; }
+        @keyframes slideDown { from { transform: translateX(-50%) translateY(-20px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+
+        @media (max-width: 600px) {
+            #header h1 { font-size: 14px; }
+            #header .subtitle { display: none; }
+            .admin-toolbar { flex-wrap: wrap; justify-content: center; bottom: 15px; }
+            .admin-btn { padding: 8px 12px; font-size: 11px; }
+            .modal { padding: 18px; }
+            .legend { bottom: 70px; font-size: 11px; padding: 10px 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><p>Chargement de la carte...</p></div>
+
+<div id="header">
+    <div>
+        <h1><i class="fas fa-shield-halved"></i> Carto Militaire</h1>
+        <div class="subtitle">Postes Militaires du Cameroun</div>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<div class="toolbar">
+    <button class="tool-btn" id="btn-gps" title="Ma position GPS"><i class="fas fa-location-crosshairs"></i></button>
+    <button class="tool-btn" id="btn-zoom-in" title="Zoom +"><i class="fas fa-plus"></i></button>
+    <button class="tool-btn" id="btn-zoom-out" title="Zoom -"><i class="fas fa-minus"></i></button>
+</div>
+
+<div class="admin-toolbar">
+    <button class="admin-btn btn-add" id="btn-add"><i class="fas fa-plus-circle"></i> Ajouter</button>
+</div>
+
+<div id="edit-mode-bar">
+    <span id="edit-mode-text"></span>
+    <button class="cancel-btn" onclick="cancelEditMode()">Annuler</button>
+</div>
+
+<div class="legend">
+    <h4><i class="fas fa-map-signs"></i> Legende</h4>
+    <div class="legend-item"><div class="legend-circle" style="background:#c62828;"></div> Brigade</div>
+    <div class="legend-item"><div class="legend-circle" style="background:#1565C0;"></div> Poste</div>
+    <div class="legend-item" style="margin-top:8px;border-top:1px solid #eee;padding-top:6px;">
+        <div style="width:14px;height:3px;background:#7B1FA2;"></div> Arrondissements
+    </div>
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://hrlufnjhwhgddxkpyzst.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhybHVmbmpod2hnZGR4a3B5enN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3MzIwMzcsImV4cCI6MjA2ODMwODAzN30.0gMYonFDAU84i3boEIKZDK4OQhDrAXXJySGDa80wTZ8';
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let map, arrondissementsLayer, postesLayer, gpsMarker, gpsAccuracy;
+    let allPostes = [];
+    let editMode = null; // 'add' | 'move'
+    let movingPosteId = null;
+
+    function init() {
+        map = L.map('map', { zoomControl: false }).setView([4.58, 13.68], 9);
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap',
+            maxZoom: 19
+        }).addTo(map);
+
+        map.createPane('arrondPane');
+        map.getPane('arrondPane').style.zIndex = 400;
+        map.createPane('postesPane');
+        map.getPane('postesPane').style.zIndex = 650;
+
+        arrondissementsLayer = L.layerGroup().addTo(map);
+        postesLayer = L.layerGroup().addTo(map);
+
+        loadArrondissements();
+        loadPostes();
+        setupEvents();
+    }
+
+    async function fetchAll(table, select) {
+        let all = [], from = 0;
+        while (true) {
+            const { data, error } = await db.from(table).select(select).range(from, from + 999);
+            if (error || !data || !data.length) break;
+            all = all.concat(data);
+            if (data.length < 1000) break;
+            from += 1000;
+        }
+        return all;
+    }
+
+    async function loadArrondissements() {
+        const data = await fetchAll('arrondissements_geojson', 'id_arrondissement,nom_arrondissement,geojson');
+        arrondissementsLayer.clearLayers();
+        data.forEach(arr => {
+            if (!arr.geojson) return;
+            const layer = L.geoJSON(arr.geojson, {
+                pane: 'arrondPane',
+                style: {
+                    color: '#7B1FA2',
+                    weight: 1.5,
+                    dashArray: '5,4',
+                    fillOpacity: 0,
+                    opacity: 0.7
+                }
+            });
+            layer.on('click', function (e) {
+                L.popup()
+                    .setLatLng(e.latlng)
+                    .setContent('<div class="popup-title">' + arr.nom_arrondissement + '</div><div class="popup-row">Arrondissement</div>')
+                    .openOn(map);
+            });
+            layer.addTo(arrondissementsLayer);
+        });
+        hideLoading();
+    }
+
+    async function loadPostes() {
+        const data = await fetchAll('postes_militaires_view', '*');
+        allPostes = data;
+        renderPostes();
+    }
+
+    function renderPostes() {
+        postesLayer.clearLayers();
+        allPostes.forEach(p => {
+            const color = p.type_poste === 'Brigade' ? '#c62828' : '#1565C0';
+            const marker = L.circleMarker([p.lat, p.lng], {
+                pane: 'postesPane',
+                radius: 7,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                fillOpacity: 0.9
+            });
+            marker.bindPopup(makePopup(p), { maxWidth: 280 });
+            marker.posteData = p;
+            marker.addTo(postesLayer);
+        });
+    }
+
+    function makePopup(p) {
+        return '<div class="popup-title"><i class="fas fa-shield-halved"></i> ' + escHtml(p.nom_poste) + '</div>'
+            + '<div class="popup-row"><b>Type :</b> ' + escHtml(p.type_poste) + '</div>'
+            + '<div class="popup-row"><b>Compagnie :</b> ' + escHtml(p.nom_compagnie) + '</div>'
+            + '<div class="popup-actions">'
+            + '<button class="popup-btn-edit" onclick="editPoste(' + p.id + ')"><i class="fas fa-pen"></i> Modifier</button>'
+            + '<button class="popup-btn-move" onclick="startMovePoste(' + p.id + ')"><i class="fas fa-arrows-alt"></i> Deplacer</button>'
+            + '<button class="popup-btn-delete" onclick="deletePoste(' + p.id + ')"><i class="fas fa-trash"></i> Supprimer</button>'
+            + '</div>';
+    }
+
+    function escHtml(t) {
+        if (!t) return '';
+        return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // --- GPS ---
+    function locateUser() {
+        if (!navigator.geolocation) return notify('Geolocalisation non supportee', 'error');
+        notify('Recherche de votre position...', 'success');
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+                if (gpsMarker) map.removeLayer(gpsMarker);
+                if (gpsAccuracy) map.removeLayer(gpsAccuracy);
+                gpsAccuracy = L.circle([lat, lng], { radius: accuracy, color: '#1565C0', dashArray: '5,5', fillOpacity: 0.08, weight: 1.5 }).addTo(map);
+                gpsMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div style="position:relative;width:30px;height:30px;">'
+                            + '<div style="position:absolute;inset:0;border-radius:50%;background:rgba(33,150,243,0.2);animation:spin 1.5s ease-out infinite;"></div>'
+                            + '<div style="position:absolute;top:7px;left:7px;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#64B5F6,#1565C0);border:3px solid white;box-shadow:0 2px 6px rgba(21,101,192,0.5);"></div>'
+                            + '</div>',
+                        iconSize: [30, 30], iconAnchor: [15, 15]
+                    })
+                }).addTo(map);
+                gpsMarker.bindPopup('<b>Votre position</b><br>Precision : ' + (accuracy < 1000 ? Math.round(accuracy) + ' m' : (accuracy / 1000).toFixed(1) + ' km'));
+                map.setView([lat, lng], accuracy < 500 ? 14 : accuracy < 2000 ? 12 : 10);
+            },
+            err => {
+                const msgs = { 1: 'Acces refuse', 2: 'Position indisponible', 3: 'Delai depasse' };
+                notify(msgs[err.code] || 'Erreur GPS', 'error');
+            },
+            { enableHighAccuracy: true, timeout: 15000 }
+        );
+    }
+
+    // --- Add poste ---
+    function startAddPoste() {
+        if (editMode) cancelEditMode();
+        editMode = 'add';
+        showEditBar('Cliquez sur la carte pour positionner le nouveau poste');
+        map.getContainer().style.cursor = 'crosshair';
+        setLayersInteractive(false);
+    }
+
+    function handleMapClick(e) {
+        if (!editMode) return;
+        if (editMode === 'add') {
+            const latlng = e.latlng;
+            cancelEditMode();
+            showPosteModal('Nouveau poste', null, function (data, overlay) {
+                saveNewPoste(data, latlng, overlay);
+            });
+        } else if (editMode === 'move') {
+            const latlng = e.latlng;
+            cancelEditMode();
+            if (confirm('Deplacer le poste a cette position ?\nLat: ' + latlng.lat.toFixed(6) + '\nLng: ' + latlng.lng.toFixed(6))) {
+                performMovePoste(movingPosteId, latlng);
+            }
+        }
+    }
+
+    async function saveNewPoste(data, latlng, overlay) {
+        showLoading();
+        const { error } = await db.from('postes_militaires').insert([{
+            nom_poste: data.nom_poste,
+            type_poste: data.type_poste,
+            nom_compagnie: data.nom_compagnie,
+            geom: 'SRID=4326;POINT(' + latlng.lng + ' ' + latlng.lat + ')'
+        }]);
+        if (error) {
+            hideLoading();
+            notify('Erreur : ' + error.message, 'error');
+            return;
+        }
+        overlay.remove();
+        await loadPostes();
+        hideLoading();
+        notify('Poste ajoute avec succes', 'success');
+        map.setView(latlng, Math.max(map.getZoom(), 12));
+    }
+
+    // --- Edit poste ---
+    function editPoste(id) {
+        map.closePopup();
+        const p = allPostes.find(x => x.id === id);
+        if (!p) return;
+        showPosteModal('Modifier - ' + p.nom_poste, p, function (data, overlay) {
+            performEditPoste(id, data, overlay);
+        });
+    }
+
+    async function performEditPoste(id, data, overlay) {
+        showLoading();
+        const { error } = await db.from('postes_militaires').update({
+            nom_poste: data.nom_poste,
+            type_poste: data.type_poste,
+            nom_compagnie: data.nom_compagnie,
+            updated_at: new Date().toISOString()
+        }).eq('id', id);
+        if (error) {
+            hideLoading();
+            notify('Erreur : ' + error.message, 'error');
+            return;
+        }
+        overlay.remove();
+        await loadPostes();
+        hideLoading();
+        notify('Poste modifie avec succes', 'success');
+    }
+
+    // --- Move poste ---
+    function startMovePoste(id) {
+        map.closePopup();
+        if (editMode) cancelEditMode();
+        editMode = 'move';
+        movingPosteId = id;
+        const p = allPostes.find(x => x.id === id);
+        showEditBar('Cliquez sur la carte pour deplacer "' + (p ? p.nom_poste : '') + '"');
+        map.getContainer().style.cursor = 'crosshair';
+        setLayersInteractive(false);
+    }
+
+    async function performMovePoste(id, latlng) {
+        showLoading();
+        const { error } = await db.from('postes_militaires').update({
+            geom: 'SRID=4326;POINT(' + latlng.lng + ' ' + latlng.lat + ')',
+            updated_at: new Date().toISOString()
+        }).eq('id', id);
+        if (error) {
+            hideLoading();
+            notify('Erreur : ' + error.message, 'error');
+            return;
+        }
+        await loadPostes();
+        hideLoading();
+        notify('Poste deplace avec succes', 'success');
+    }
+
+    // --- Delete poste ---
+    async function deletePoste(id) {
+        const p = allPostes.find(x => x.id === id);
+        if (!p) return;
+        if (!confirm('Supprimer le poste "' + p.nom_poste + '" ?\nCette action est irreversible.')) return;
+        map.closePopup();
+        showLoading();
+        const { error } = await db.from('postes_militaires').delete().eq('id', id);
+        if (error) {
+            hideLoading();
+            notify('Erreur : ' + error.message, 'error');
+            return;
+        }
+        await loadPostes();
+        hideLoading();
+        notify('Poste supprime', 'success');
+    }
+
+    // --- Modal ---
+    function showPosteModal(title, poste, onSave) {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = '<div class="modal">'
+            + '<h3><i class="fas fa-shield-halved"></i> ' + escHtml(title) + '</h3>'
+            + '<div class="form-group"><label>Nom du poste *</label><input id="m-nom" type="text" value="' + escHtml(poste ? poste.nom_poste : '') + '"></div>'
+            + '<div class="form-group"><label>Type de poste *</label>'
+            + '<select id="m-type">'
+            + '<option value="">-- Choisir --</option>'
+            + '<option value="Brigade"' + (poste && poste.type_poste === 'Brigade' ? ' selected' : '') + '>Brigade</option>'
+            + '<option value="Poste"' + (poste && poste.type_poste === 'Poste' ? ' selected' : '') + '>Poste</option>'
+            + '</select></div>'
+            + '<div class="form-group"><label>Nom de la compagnie *</label><input id="m-compagnie" type="text" value="' + escHtml(poste ? poste.nom_compagnie : '') + '"></div>'
+            + '<div class="modal-actions">'
+            + '<button class="btn-cancel" id="m-cancel">Annuler</button>'
+            + '<button class="btn-save" id="m-save"><i class="fas fa-check"></i> Enregistrer</button>'
+            + '</div></div>';
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('#m-cancel').onclick = () => overlay.remove();
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+        overlay.querySelector('#m-save').onclick = function () {
+            const nom = overlay.querySelector('#m-nom').value.trim();
+            const type = overlay.querySelector('#m-type').value;
+            const compagnie = overlay.querySelector('#m-compagnie').value.trim();
+            if (!nom || !type || !compagnie) {
+                notify('Tous les champs sont obligatoires', 'error');
+                return;
+            }
+            onSave({ nom_poste: nom, type_poste: type, nom_compagnie: compagnie }, overlay);
+        };
+
+        setTimeout(() => overlay.querySelector('#m-nom').focus(), 100);
+    }
+
+    // --- UI helpers ---
+    function showEditBar(text) {
+        const bar = document.getElementById('edit-mode-bar');
+        document.getElementById('edit-mode-text').textContent = text;
+        bar.style.display = 'block';
+    }
+
+    function cancelEditMode() {
+        editMode = null;
+        movingPosteId = null;
+        document.getElementById('edit-mode-bar').style.display = 'none';
+        map.getContainer().style.cursor = '';
+        setLayersInteractive(true);
+    }
+
+    function setLayersInteractive(enabled) {
+        [arrondissementsLayer, postesLayer].forEach(lg => {
+            if (!lg) return;
+            const el = lg.getPane ? map.getPane(lg.options?.pane) : null;
+            lg.eachLayer(layer => {
+                const container = layer.getElement ? layer.getElement() : (layer._path || null);
+                if (container) container.style.pointerEvents = enabled ? '' : 'none';
+                if (layer.eachLayer) {
+                    layer.eachLayer(sub => {
+                        const subEl = sub.getElement ? sub.getElement() : (sub._path || null);
+                        if (subEl) subEl.style.pointerEvents = enabled ? '' : 'none';
+                    });
+                }
+            });
+        });
+    }
+
+    function showLoading() {
+        document.getElementById('loading').style.display = 'flex';
+    }
+    function hideLoading() {
+        document.getElementById('loading').style.display = 'none';
+    }
+
+    function notify(msg, type) {
+        const el = document.createElement('div');
+        el.className = 'notification ' + type;
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
+    // --- Events ---
+    function setupEvents() {
+        document.getElementById('btn-gps').addEventListener('click', locateUser);
+        document.getElementById('btn-zoom-in').addEventListener('click', () => map.zoomIn());
+        document.getElementById('btn-zoom-out').addEventListener('click', () => map.zoomOut());
+        document.getElementById('btn-add').addEventListener('click', startAddPoste);
+        map.on('click', handleMapClick);
+    }
+
+    init();
+</script>
+</body>
+</html>
