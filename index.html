@@ -145,13 +145,77 @@
         .notification.error { background: #c62828; }
         @keyframes slideDown { from { transform: translateX(-50%) translateY(-20px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
 
-        @media (max-width: 600px) {
-            #header h1 { font-size: 14px; }
+        .legend-toggle {
+            display: none; position: absolute; bottom: 80px; right: 10px; z-index: 1000;
+            width: 36px; height: 36px; border: none; border-radius: 8px;
+            background: rgba(255,255,255,0.92); backdrop-filter: blur(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            cursor: pointer; font-size: 14px; color: #333;
+        }
+        .legend.collapsed { display: none; }
+
+        @media (max-width: 768px) {
+            #header { padding: 8px 14px; }
+            #header h1 { font-size: 15px; }
+            #header .subtitle { font-size: 10px; }
+            .toolbar { top: 58px; right: 8px; gap: 5px; }
+            .tool-btn { width: 38px; height: 38px; font-size: 15px; }
+            .admin-toolbar { bottom: 20px; gap: 6px; }
+            .admin-btn { padding: 9px 14px; font-size: 12px; gap: 6px; }
+            #edit-mode-bar {
+                top: 58px; max-width: 88vw; font-size: 12px;
+                padding: 8px 16px; white-space: normal; text-align: center;
+            }
+            .legend { bottom: 68px; padding: 10px 12px; font-size: 11px; }
+            .legend h4 { font-size: 12px; }
+            .leaflet-popup-content { min-width: 180px; }
+            .popup-title { font-size: 13px; }
+            .popup-row { font-size: 11px; }
+            .popup-actions button { padding: 6px 8px; font-size: 10px; }
+            .modal { width: 94vw; padding: 18px; max-height: 90vh; }
+            .modal h3 { font-size: 15px; }
+            .form-group input, .form-group select { padding: 9px 10px; font-size: 13px; }
+            .notification { font-size: 12px; padding: 10px 18px; max-width: 90vw; }
+        }
+
+        @media (max-width: 480px) {
+            #header { padding: 6px 10px; }
+            #header h1 { font-size: 13px; }
             #header .subtitle { display: none; }
-            .admin-toolbar { flex-wrap: wrap; justify-content: center; bottom: 15px; }
-            .admin-btn { padding: 8px 12px; font-size: 11px; }
-            .modal { padding: 18px; }
-            .legend { bottom: 70px; font-size: 11px; padding: 10px 12px; }
+            .toolbar { top: 50px; right: 6px; gap: 4px; }
+            .tool-btn { width: 34px; height: 34px; font-size: 14px; border-radius: 7px; }
+            .admin-toolbar { bottom: 12px; gap: 5px; }
+            .admin-btn { padding: 8px 10px; font-size: 11px; border-radius: 8px; gap: 5px; }
+            #edit-mode-bar { top: 50px; font-size: 11px; padding: 7px 12px; max-width: 92vw; }
+            #edit-mode-bar .cancel-btn { padding: 4px 10px; font-size: 11px; margin-left: 8px; }
+            .legend-toggle { display: flex; align-items: center; justify-content: center; bottom: 56px; }
+            .legend { bottom: 56px; right: 52px; padding: 8px 10px; font-size: 10px; max-width: 160px; }
+            .legend h4 { font-size: 11px; margin-bottom: 5px; }
+            .legend-circle { width: 12px; height: 12px; }
+            .legend-item { gap: 6px; margin-bottom: 3px; }
+            .leaflet-popup-content { min-width: 160px; }
+            .popup-title { font-size: 12px; }
+            .popup-row { font-size: 10px; }
+            .popup-actions { gap: 4px; }
+            .popup-actions button { padding: 5px 7px; font-size: 10px; border-radius: 5px; }
+            .modal { width: 96vw; padding: 14px; border-radius: 10px; }
+            .modal h3 { font-size: 14px; margin-bottom: 12px; }
+            .form-group { margin-bottom: 10px; }
+            .form-group label { font-size: 11px; }
+            .form-group input, .form-group select { padding: 8px 9px; font-size: 13px; border-radius: 6px; }
+            .modal-actions { gap: 8px; margin-top: 14px; }
+            .modal-actions button { padding: 9px; font-size: 13px; border-radius: 7px; }
+            .notification { font-size: 11px; padding: 8px 14px; max-width: 92vw; border-radius: 8px; }
+        }
+
+        @media (max-width: 360px) {
+            #header h1 { font-size: 12px; }
+            .tool-btn { width: 32px; height: 32px; font-size: 13px; }
+            .admin-btn { padding: 7px 8px; font-size: 10px; }
+            .popup-actions { flex-direction: column; }
+            .popup-actions button { width: 100%; text-align: center; }
+            .modal-actions { flex-direction: column; }
+            .modal-actions button { width: 100%; }
         }
     </style>
 </head>
@@ -184,7 +248,8 @@
     <button class="cancel-btn" onclick="cancelEditMode()">Annuler</button>
 </div>
 
-<div class="legend">
+<button class="legend-toggle" id="legend-toggle" title="Legende"><i class="fas fa-map-signs"></i></button>
+<div class="legend" id="legend">
     <h4><i class="fas fa-map-signs"></i> Legende</h4>
     <div class="legend-item"><div class="legend-circle" style="background:#c62828;"></div> Brigade</div>
     <div class="legend-item"><div class="legend-circle" style="background:#1565C0;"></div> Poste</div>
@@ -563,6 +628,11 @@
         }
     }
 
+    // --- Legend toggle (small screens) ---
+    function toggleLegend() {
+        document.getElementById('legend').classList.toggle('collapsed');
+    }
+
     // --- Events ---
     function setupEvents() {
         document.getElementById('btn-satellite').addEventListener('click', toggleSatellite);
@@ -570,6 +640,7 @@
         document.getElementById('btn-zoom-in').addEventListener('click', () => map.zoomIn());
         document.getElementById('btn-zoom-out').addEventListener('click', () => map.zoomOut());
         document.getElementById('btn-add').addEventListener('click', startAddPoste);
+        document.getElementById('legend-toggle').addEventListener('click', toggleLegend);
         map.on('click', handleMapClick);
     }
 
